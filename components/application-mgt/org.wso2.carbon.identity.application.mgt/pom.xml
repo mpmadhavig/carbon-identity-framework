@@ -19,7 +19,7 @@
     <parent>
         <groupId>org.wso2.carbon.identity.framework</groupId>
         <artifactId>application-mgt</artifactId>
-        <version>5.25.19-SNAPSHOT</version>
+        <version>5.25.5</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>org.wso2.carbon.identity.application.mgt</artifactId>
@@ -92,6 +92,10 @@
         <dependency>
             <groupId>org.wso2.carbon.identity.framework</groupId>
             <artifactId>org.wso2.carbon.security.mgt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity.framework</groupId>
+            <artifactId>org.wso2.carbon.claim.mgt</artifactId>
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon.identity.framework</groupId>
@@ -218,6 +222,7 @@
                             org.wso2.carbon.directory.server.manager; version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.identity.application.common.*; version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.idp.mgt.*; version="${carbon.identity.package.import.version.range}",
+                            org.wso2.carbon.claim.mgt; version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.identity.claim.metadata.mgt; version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.identity.claim.metadata.mgt.util; version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.identity.claim.metadata.mgt.model; version="${carbon.identity.package.import.version.range}",

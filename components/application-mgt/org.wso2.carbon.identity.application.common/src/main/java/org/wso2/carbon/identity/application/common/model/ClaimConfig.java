@@ -62,6 +62,9 @@ public class ClaimConfig implements Serializable {
     @XmlElement(name = "AlwaysSendMappedLocalSubjectId")
     private boolean alwaysSendMappedLocalSubjectId;
 
+    @XmlElement(name = "allAttributesAllowed")
+    private boolean allAttributesAllowed;
+
     @XmlElementWrapper(name = "SPClaimDialects")
     @XmlElement(name = "SPClaimDialect")
     private String[] spClaimDialects = null;
@@ -92,6 +95,10 @@ public class ClaimConfig implements Serializable {
             } else if ("AlwaysSendMappedLocalSubjectId".equals(elementName)) {
                 if ("true".equals(element.getText())) {
                     claimConfig.setAlwaysSendMappedLocalSubjectId(true);
+                }
+            } else if ("AllAttributesAllowed".equals(elementName)) {
+                if ("true".equals(element.getText())) {
+                    claimConfig.setAllAttributesAllowed(true);
                 }
             } else if ("IdpClaims".equals(elementName)) {
                 Iterator<?> idpClaimsIter = element.getChildElements();
@@ -231,5 +238,15 @@ public class ClaimConfig implements Serializable {
 
         this.spClaimDialects = this.spClaimDialects == null ? spClaimDialects : (String[]) ArrayUtils.addAll(
                 this.spClaimDialects, spClaimDialects);
+    }
+
+    public boolean isAllAttributesAllowed() {
+
+        return allAttributesAllowed;
+    }
+
+    public void setAllAttributesAllowed(boolean allAttributesAllowed) {
+
+        this.allAttributesAllowed = allAttributesAllowed;
     }
 }

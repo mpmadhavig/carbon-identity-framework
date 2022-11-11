@@ -64,6 +64,7 @@ public class ApplicationConfig implements Serializable, Cloneable {
     private Map<String, String> roleMappings = new HashMap<>();
     private Map<String, String> requestedClaims = new HashMap<>();
     private Map<String, String> mandatoryClaims = new HashMap<>();
+    private boolean allAttributesAllowed;
     private boolean isSaaSApp;
     private boolean useTenantDomainInLocalSubjectIdentifier = false;
     private boolean useUserstoreDomainInLocalSubjectIdentifier = false;
@@ -106,11 +107,11 @@ public class ApplicationConfig implements Serializable, Cloneable {
             setUseUserstoreDomainInRole(outboundAuthConfig.isUseUserstoreDomainInRoles());
         }
 
-
         ClaimConfig claimConfig = application.getClaimConfig();
         if (claimConfig != null) {
             roleClaim = claimConfig.getRoleClaimURI();
             alwaysSendMappedLocalSubjectId = claimConfig.isAlwaysSendMappedLocalSubjectId();
+            allAttributesAllowed = claimConfig.isAllAttributesAllowed();
 
             List<ClaimMapping> spClaimMappings = new ArrayList<>(Arrays.asList(claimConfig.getClaimMappings()));
             setSpDialectClaims(claimConfig, spClaimMappings, tenantDomain);
@@ -385,5 +386,15 @@ public class ApplicationConfig implements Serializable, Cloneable {
 
     public boolean isUseUserIdForDefaultSubject() {
         return useUserIdForDefaultSubject;
+    }
+
+    public boolean isAllAttributesAllowed() {
+
+        return allAttributesAllowed;
+    }
+
+    public void setAllAttributesAllowed(boolean allAttributesAllowed) {
+
+        this.allAttributesAllowed = allAttributesAllowed;
     }
 }

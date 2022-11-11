@@ -25,6 +25,8 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.CarbonConstants;
+import org.wso2.carbon.claim.mgt.ClaimManagementException;
+import org.wso2.carbon.claim.mgt.ClaimManagerHandler;
 import org.wso2.carbon.context.CarbonContext;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.database.utils.jdbc.NamedPreparedStatement;
@@ -61,6 +63,7 @@ import org.wso2.carbon.identity.application.common.model.ServiceProvider;
 import org.wso2.carbon.identity.application.common.model.ServiceProviderProperty;
 import org.wso2.carbon.identity.application.common.model.User;
 import org.wso2.carbon.identity.application.common.model.script.AuthenticationScriptConfig;
+import org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants;
 import org.wso2.carbon.identity.application.common.util.IdentityApplicationManagementUtil;
 import org.wso2.carbon.identity.application.mgt.AbstractInboundAuthenticatorConfig;
 import org.wso2.carbon.identity.application.mgt.ApplicationConstants;
@@ -110,6 +113,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -118,6 +122,10 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
 import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants.ADVANCED_CONFIG;
+import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants
+        .ALL_ATTRIBUTES_ALLOWED_SP_PROPERTY_DISPLAY_NAME;
+import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants
+        .ALL_ATTRIBUTES_ALLOWED_SP_PROPERTY_NAME;
 import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants.CLIENT_ID_SP_PROPERTY_NAME;
 import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants.Error.APPLICATION_ALREADY_EXISTS;
 import static org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants.Error.APPLICATION_NOT_DISCOVERABLE;
@@ -163,7 +171,8 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
     private static final String AUDIT_FAIL = "Fail";
     private static final String ASTERISK = "*";
     private static final int MAX_RETRY_ATTEMPTS = 3;
-
+    private static final String OIDC_DIALECT = "http://wso2.org/oidc/claim";
+    private static final String LOCAL_DIALECT = "http://wso2.org/claims";
     private List<String> standardInboundAuthTypes;
     public static final String USE_DOMAIN_IN_ROLES = "USE_DOMAIN_IN_ROLES";
     public static final String USE_DOMAIN_IN_ROLE_DISPLAY_NAME = "DOMAIN_IN_ROLES";
@@ -404,8 +413,11 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
             ServiceProviderProperty isManagementAppProperty = buildIsManagementAppProperty(application);
             serviceProviderProperties.add(isManagementAppProperty);
 
-            addServiceProviderProperties(connection, applicationId, serviceProviderProperties, tenantID);
+            ServiceProviderProperty allAttributesAllowedProperty =
+                    buildAllAttributesAllowedProperty(application);
+            serviceProviderProperties.add(allAttributesAllowedProperty);
 
+            addServiceProviderProperties(connection, applicationId, serviceProviderProperties, tenantID);
 
             if (log.isDebugEnabled()) {
                 log.debug("Application Stored successfully with applicationId: " + applicationId +
@@ -1559,6 +1571,13 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
             return;
         }
 
+        if (claimConfiguration.isAllAttributesAllowed()) {
+            log.debug("All claims are allowed, hence skipping ..");
+            return;
+        }
+
+        // todo: handle claim Mapping created at SP level for SAML apps
+
         PreparedStatement storeClaimMapPrepStmt = null;
         try {
             storeClaimMapPrepStmt = connection
@@ -2003,13 +2022,18 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
             serviceProvider.setOutboundProvisioningConfig(getOutboundProvisioningConfiguration(
                     applicationId, connection, tenantID));
 
+            // Set Claim Config SP properties
+            serviceProvider.getClaimConfig().setAllAttributesAllowed(getIsAllAttributesAllowed
+                    (propertyList));
+
             // Load Claim Mapping
-            serviceProvider.setClaimConfig(getClaimConfiguration(applicationId, connection,
-                    tenantID));
+            serviceProvider.setClaimConfig(getClaimConfiguration(applicationId,
+                    serviceProvider.getClaimConfig().isAllAttributesAllowed(), connection, tenantID,
+                    serviceProvider.getInboundAuthenticationConfig().getInboundAuthenticationRequestConfigs()[0]
+                            .getInboundAuthType()));
 
             // Load Role Mappings
-            List<RoleMapping> roleMappings = getRoleMappingOfApplication(applicationId, connection,
-                    tenantID);
+            List<RoleMapping> roleMappings = getRoleMappingOfApplication(applicationId, connection, tenantID);
             PermissionsAndRoleConfig permissionAndRoleConfig = new PermissionsAndRoleConfig();
             permissionAndRoleConfig.setRoleMappings(roleMappings.toArray(new RoleMapping[0]));
             serviceProvider.setPermissionAndRoleConfig(permissionAndRoleConfig);
@@ -2121,6 +2145,20 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
                 .orElse(StringUtils.EMPTY);
         if (StringUtils.EMPTY.equals(value)) {
             return true;
+        }
+        return Boolean.parseBoolean(value);
+    }
+
+    private boolean getIsAllAttributesAllowed(List<ServiceProviderProperty> propertyList) {
+
+        String value = propertyList.stream()
+                .filter(property -> ALL_ATTRIBUTES_ALLOWED_SP_PROPERTY_NAME.equals(property.getName()))
+                .findFirst()
+                .map(ServiceProviderProperty::getValue)
+                .orElse(StringUtils.EMPTY);
+        // this means it's an old sp -> old default filtering should be enabled
+        if (StringUtils.EMPTY.equals(value)) {
+            return false;
         }
         return Boolean.parseBoolean(value);
     }
@@ -2864,80 +2902,122 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
      * @return
      * @throws IdentityApplicationManagementException
      */
-    private ClaimConfig getClaimConfiguration(int applicationId, Connection connection, int tenantID)
+    private ClaimConfig getClaimConfiguration(int applicationId, boolean filterBasedOnlyOnScopesRequested,
+                                              Connection connection, int tenantID, String inboundAuthType)
             throws IdentityApplicationManagementException {
 
         ClaimConfig claimConfig = new ClaimConfig();
         ArrayList<ClaimMapping> claimMappingList = new ArrayList<ClaimMapping>();
         List<String> spDialectList = new ArrayList<String>();
+        org.wso2.carbon.user.api.ClaimMapping[] claimMappings = null;
 
         if (log.isDebugEnabled()) {
             log.debug("Reading Claim Mappings of Application " + applicationId);
         }
 
-        PreparedStatement get = null;
-        ResultSet resultSet = null;
-        try {
-            get = connection.prepareStatement(ApplicationMgtDBQueries.LOAD_CLAIM_MAPPING_BY_APP_ID);
-            // IDP_CLAIM, SP_CLAIM, IS_REQUESTED
-            get.setInt(1, applicationId);
-            get.setInt(2, tenantID);
-            resultSet = get.executeQuery();
+        if (filterBasedOnlyOnScopesRequested) {
+            try {
+                String tenantDomain = IdentityTenantUtil.getTenantDomain(tenantID);
 
-            while (resultSet.next()) {
-                ClaimMapping claimMapping = new ClaimMapping();
-                Claim localClaim = new Claim();
-                Claim remoteClaim = new Claim();
+                if (Objects.equals(inboundAuthType, IdentityApplicationConstants.OAuth2.NAME)) {
+                    claimMappings = ClaimManagerHandler.getInstance().getAllClaimMappings(OIDC_DIALECT, tenantDomain);
 
-                localClaim.setClaimUri(resultSet.getString(1));
-                remoteClaim.setClaimUri(resultSet.getString(2));
-
-                String requested = resultSet.getString(3);
-
-                if ("1".equalsIgnoreCase(requested)) {
-                    claimMapping.setRequested(true);
-                } else {
-                    claimMapping.setRequested(false);
+                } else if (Objects.equals(inboundAuthType, IdentityApplicationConstants.Authenticator.SAML2SSO.NAME)) {
+                    claimMappings = ClaimManagerHandler.getInstance().getAllClaimMappings(LOCAL_DIALECT, tenantDomain);
                 }
 
-                String mandatory = resultSet.getString(4);
+                for (org.wso2.carbon.user.api.ClaimMapping claimMapping: claimMappings) {
+                    ClaimMapping claimMappingItem = new ClaimMapping();
+                    Claim localClaim = new Claim();
+                    Claim remoteClaim = new Claim();
 
-                if ("1".equalsIgnoreCase(mandatory)) {
-                    claimMapping.setMandatory(true);
-                } else {
-                    claimMapping.setMandatory(false);
+                    localClaim.setClaimUri(claimMapping.getClaim().getClaimUri());
+                    remoteClaim.setClaimUri(claimMapping.getClaim().getClaimUri());
+
+                    claimMappingItem.setLocalClaim(localClaim);
+                    claimMappingItem.setRemoteClaim(remoteClaim);
+                    claimMappingItem.setDefaultValue(null);
+                    claimMappingItem.setRequested(true);
+                    claimMappingItem.setMandatory(false);
+
+                    claimMappingList.add(claimMappingItem);
                 }
-
-                if (remoteClaim.getClaimUri() == null
-                        || remoteClaim.getClaimUri().trim().length() == 0) {
-                    remoteClaim.setClaimUri(localClaim.getClaimUri());
-                }
-
-                if (localClaim.getClaimUri() == null
-                        || localClaim.getClaimUri().trim().length() == 0) {
-                    localClaim.setClaimUri(remoteClaim.getClaimUri());
-                }
-
-                claimMapping.setDefaultValue(resultSet.getString(5));
-
-                claimMapping.setLocalClaim(localClaim);
-                claimMapping.setRemoteClaim(remoteClaim);
-
-                claimMappingList.add(claimMapping);
-
+            } catch (ClaimManagementException e) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Local Claim: " + claimMapping.getLocalClaim().getClaimUri()
-                            + " SPClaim: " + claimMapping.getRemoteClaim().getClaimUri());
+                    log.debug("Error occurred while loading supported claims", e);
+                }
+            } finally {
+                if (claimMappingList.size() == 0) {
+                    claimConfig.setClaimMappings(claimMappingList.toArray(new ClaimMapping[0]));
+                } else {
+                    claimConfig.setClaimMappings(claimMappingList.toArray(new ClaimMapping[claimMappingList.size()]));
                 }
             }
+        } else {
+            PreparedStatement get = null;
+            ResultSet resultSet = null;
+            try {
+                get = connection.prepareStatement(ApplicationMgtDBQueries.LOAD_CLAIM_MAPPING_BY_APP_ID);
+                // IDP_CLAIM, SP_CLAIM, IS_REQUESTED
+                get.setInt(1, applicationId);
+                get.setInt(2, tenantID);
+                resultSet = get.executeQuery();
 
-            claimConfig.setClaimMappings(claimMappingList.toArray(new ClaimMapping[claimMappingList
-                    .size()]));
-        } catch (SQLException e) {
-            throw new IdentityApplicationManagementException("Error while retrieving all application", e);
-        } finally {
-            IdentityApplicationManagementUtil.closeStatement(get);
-            IdentityApplicationManagementUtil.closeResultSet(resultSet);
+                while (resultSet.next()) {
+                    ClaimMapping claimMapping = new ClaimMapping();
+                    Claim localClaim = new Claim();
+                    Claim remoteClaim = new Claim();
+
+                    localClaim.setClaimUri(resultSet.getString(1));
+                    remoteClaim.setClaimUri(resultSet.getString(2));
+
+                    String requested = resultSet.getString(3);
+
+                    if ("1".equalsIgnoreCase(requested)) {
+                        claimMapping.setRequested(true);
+                    } else {
+                        claimMapping.setRequested(false);
+                    }
+
+                    String mandatory = resultSet.getString(4);
+
+                    if ("1".equalsIgnoreCase(mandatory)) {
+                        claimMapping.setMandatory(true);
+                    } else {
+                        claimMapping.setMandatory(false);
+                    }
+
+                    if (remoteClaim.getClaimUri() == null
+                            || remoteClaim.getClaimUri().trim().length() == 0) {
+                        remoteClaim.setClaimUri(localClaim.getClaimUri());
+                    }
+
+                    if (localClaim.getClaimUri() == null
+                            || localClaim.getClaimUri().trim().length() == 0) {
+                        localClaim.setClaimUri(remoteClaim.getClaimUri());
+                    }
+
+                    claimMapping.setDefaultValue(resultSet.getString(5));
+
+                    claimMapping.setLocalClaim(localClaim);
+                    claimMapping.setRemoteClaim(remoteClaim);
+
+                    claimMappingList.add(claimMapping);
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("Local Claim: " + claimMapping.getLocalClaim().getClaimUri()
+                                + " SPClaim: " + claimMapping.getRemoteClaim().getClaimUri());
+                    }
+                }
+
+                claimConfig.setClaimMappings(claimMappingList.toArray(new ClaimMapping[claimMappingList
+                        .size()]));
+            } catch (SQLException e) {
+                throw new IdentityApplicationManagementException("Error while retrieving all application", e);
+            } finally {
+                IdentityApplicationManagementUtil.closeStatement(get);
+                IdentityApplicationManagementUtil.closeResultSet(resultSet);
+            }
         }
 
         PreparedStatement loadClaimConfigsPrepStmt = null;
@@ -4634,6 +4714,11 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
         ServiceProviderProperty isManagementAppProperty = buildIsManagementAppProperty(sp);
         spPropertyMap.put(isManagementAppProperty.getName(), isManagementAppProperty);
 
+        ServiceProviderProperty allAttributesAllowedProperty =
+                buildAllAttributesAllowedProperty(sp);
+        spPropertyMap.put(
+                allAttributesAllowedProperty.getName(), allAttributesAllowedProperty);
+
         sp.setSpProperties(spPropertyMap.values().toArray(new ServiceProviderProperty[0]));
     }
 
@@ -4644,6 +4729,30 @@ public class ApplicationDAOImpl extends AbstractApplicationDAOImpl implements Pa
         isManagementAppProperty.setDisplayName(IS_MANAGEMENT_APP_SP_PROPERTY_DISPLAY_NAME);
         isManagementAppProperty.setValue(String.valueOf(sp.isManagementApp()));
         return isManagementAppProperty;
+    }
+
+    private ServiceProviderProperty buildAllAttributesAllowedProperty(ServiceProvider sp) {
+
+        ServiceProviderProperty allAttributesAllowedProperty = new ServiceProviderProperty();
+        allAttributesAllowedProperty.setName(ALL_ATTRIBUTES_ALLOWED_SP_PROPERTY_NAME);
+        allAttributesAllowedProperty.setDisplayName(
+                ALL_ATTRIBUTES_ALLOWED_SP_PROPERTY_DISPLAY_NAME);
+
+        String inboundAuthType = sp.getInboundAuthenticationConfig().getInboundAuthenticationRequestConfigs()[0]
+                .getInboundAuthType();
+
+        if (!inboundAuthType.equals(IdentityApplicationConstants.OAuth2.NAME)) {
+            // SAML application - create/update
+            allAttributesAllowedProperty.setValue(String.valueOf(false));
+        } else if (sp.getClaimConfig() == null) {
+            // OIDC application - create
+            allAttributesAllowedProperty.setValue(String.valueOf(true));
+        } else {
+            // OIDC application - update
+            allAttributesAllowedProperty.setValue(String.valueOf(sp.getClaimConfig()
+                    .isAllAttributesAllowed()));
+        }
+        return allAttributesAllowedProperty;
     }
 
     private ServiceProviderProperty buildTemplateIdProperty(ServiceProvider sp) {
