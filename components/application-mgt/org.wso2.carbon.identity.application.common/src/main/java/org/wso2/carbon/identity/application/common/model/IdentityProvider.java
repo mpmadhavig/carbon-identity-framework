@@ -1,7 +1,7 @@
 /*
- * Copyright (c) 2014, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ * Copyright (c) 2014-2023, WSO2 LLC. (http://www.wso2.com).
  *
- * WSO2 Inc. licenses this file to you under the Apache License,
+ * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License.
  * You may obtain a copy of the License at
@@ -172,6 +172,9 @@ public class IdentityProvider implements Serializable {
     @XmlElement(name = "TemplateId")
     private String templateId;
 
+    @XmlElement(name = "trustedTokenIssuer")
+    private boolean trustedTokenIssuer = false;
+
     public static IdentityProvider build(OMElement identityProviderOM) {
 
         IdentityProvider identityProvider = new IdentityProvider();
@@ -188,6 +191,7 @@ public class IdentityProvider implements Serializable {
             if (elementName.equals(FILE_ELEMENT_IDENTITY_PROVIDER_NAME)) {
                 if (element.getText() != null) {
                     identityProvider.setIdentityProviderName(element.getText());
+                    identityProvider.setResourceId(identityProvider.getIdentityProviderName());
                 } else {
                     log.error("Identity provider not loaded from the file system. Identity provider name must be " +
                             "not null.");
@@ -952,5 +956,14 @@ public class IdentityProvider implements Serializable {
     public void setTemplateId(String templateId) {
 
         this.templateId = templateId;
+    }
+
+    public boolean isTrustedTokenIssuer() {
+
+        return trustedTokenIssuer;
+    }
+
+    public void setTrustedTokenIssuer(boolean trustedTokenIssuer) {
+        this.trustedTokenIssuer = trustedTokenIssuer;
     }
 }
