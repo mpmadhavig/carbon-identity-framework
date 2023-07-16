@@ -22,13 +22,13 @@ import org.wso2.carbon.base.ServerConfiguration;
 import org.wso2.carbon.context.CarbonContext;
 import org.wso2.carbon.context.RegistryType;
 import org.wso2.carbon.core.util.KeyStoreUtil;
-import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.registry.core.Registry;
 import org.wso2.carbon.security.SecurityConfigException;
 import org.wso2.carbon.security.SecurityConstants;
 import org.wso2.carbon.security.keystore.service.CertData;
 import org.wso2.carbon.security.keystore.service.CertDataDetail;
 import org.wso2.carbon.security.keystore.service.KeyStoreData;
+import org.wso2.carbon.security.util.KeyStoreMgtUtil;
 
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -285,13 +285,13 @@ public class KeyStoreManagementServiceImpl implements KeyStoreManagementService 
 
     private KeyStoreAdmin getKeyStoreAdmin(String tenantDomain) {
 
-        return new KeyStoreAdmin(IdentityTenantUtil.getTenantId(tenantDomain),
+        return new KeyStoreAdmin(KeyStoreMgtUtil.getTenantId(tenantDomain),
                 (Registry) CarbonContext.getThreadLocalCarbonContext().getRegistry(RegistryType.SYSTEM_GOVERNANCE));
     }
 
     private boolean isSuperTenant(String tenantDomain) {
 
-        return IdentityTenantUtil.getTenantId(tenantDomain) == MultitenantConstants.SUPER_TENANT_ID;
+        return KeyStoreMgtUtil.getTenantId(tenantDomain) == MultitenantConstants.SUPER_TENANT_ID;
     }
 
     private String getTrustStoreName() {
