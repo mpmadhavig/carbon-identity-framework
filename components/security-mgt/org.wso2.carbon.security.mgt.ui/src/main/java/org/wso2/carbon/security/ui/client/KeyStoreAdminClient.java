@@ -25,7 +25,6 @@ import org.apache.axis2.client.ServiceClient;
 import org.apache.axis2.context.ConfigurationContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.identity.core.util.IdentityIOStreamUtils;
 import org.wso2.carbon.security.mgt.stub.keystore.AddKeyStore;
 import org.wso2.carbon.security.mgt.stub.keystore.AddTrustStore;
 import org.wso2.carbon.security.mgt.stub.keystore.DeleteStore;
@@ -197,7 +196,7 @@ public class KeyStoreAdminClient {
             log.error("Error in getting bytes from file.", e);
             throw e;
         } finally {
-            IdentityIOStreamUtils.closeInputStream(is);
+            KeyStoreIOStreamUtils.closeInputStream(is);
         }
     }
 
