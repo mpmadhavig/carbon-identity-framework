@@ -18,9 +18,7 @@
 
 package org.wso2.carbon.security;
 
-import org.wso2.carbon.identity.base.IdentityException;
-
-public class SecurityConfigException extends IdentityException {
+public class SecurityConfigException extends Exception {
 
     private static final long serialVersionUID = 2202942561393644426L;
 
