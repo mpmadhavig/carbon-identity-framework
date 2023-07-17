@@ -18,8 +18,8 @@
 
 package org.wso2.carbon.security.util;
 
-import org.wso2.carbon.identity.base.IdentityRuntimeException;
-import org.wso2.carbon.identity.core.persistence.JDBCPersistenceManager;
+import org.wso2.carbon.security.keystore.persistance.KeyStoreJDBCPersistenceManager;
+import org.wso2.carbon.security.keystore.persistance.KeyStoreRuntimeException;
 
 import java.sql.Connection;
 
@@ -37,11 +37,11 @@ public class KeyStoreDatabaseUtil {
      * @param shouldApplyTransaction Whether to apply transaction or not.
      *
      * @return Database Connection
-     * @throws IdentityRuntimeException Error when getting a database connection to Identity database
+     * @throws KeyStoreRuntimeException Error when getting a database connection to Identity database
      */
-    public static Connection getDBConnection(boolean shouldApplyTransaction) throws IdentityRuntimeException {
+    public static Connection getDBConnection(boolean shouldApplyTransaction) throws KeyStoreRuntimeException {
 
-        return JDBCPersistenceManager.getInstance().getDBConnection(shouldApplyTransaction);
+        return KeyStoreJDBCPersistenceManager.getInstance().getDBConnection(shouldApplyTransaction);
     }
 
     /**
@@ -49,7 +49,7 @@ public class KeyStoreDatabaseUtil {
      */
     public static void rollbackTransaction(Connection dbConnection) {
 
-        JDBCPersistenceManager.getInstance().rollbackTransaction(dbConnection);
+        KeyStoreJDBCPersistenceManager.getInstance().rollbackTransaction(dbConnection);
     }
 
     /**
@@ -57,6 +57,6 @@ public class KeyStoreDatabaseUtil {
      */
     public static void commitTransaction(Connection dbConnection) {
 
-        JDBCPersistenceManager.getInstance().commitTransaction(dbConnection);
+        KeyStoreJDBCPersistenceManager.getInstance().commitTransaction(dbConnection);
     }
 }
