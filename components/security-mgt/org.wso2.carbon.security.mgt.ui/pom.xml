@@ -50,10 +50,6 @@
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon.identity.framework</groupId>
-            <artifactId>org.wso2.carbon.user.mgt.common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.wso2.carbon.identity.framework</groupId>
             <artifactId>org.wso2.carbon.user.mgt.ui</artifactId>
         </dependency>
         <dependency>
@@ -62,7 +58,7 @@
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon.identity.framework</groupId>
-            <artifactId>org.wso2.carbon.identity.core</artifactId>
+            <artifactId>org.wso2.carbon.security.mgt</artifactId>
         </dependency>
     </dependencies>
 
@@ -91,9 +87,7 @@
                             version="${carbon.identity.package.import.version.range}",
                             org.wso2.carbon.identity.sts.common.stub.config.*;
                             version="${carbon.identity.package.import.version.range}",
-                            org.wso2.carbon.user.mgt.stub.types.carbon; version="${carbon.identity.package.import.version.range}",
-                            org.wso2.carbon.identity.core.*;
-                            version="${carbon.identity.package.import.version.range}"
+                            org.wso2.carbon.user.mgt.stub.types.carbon; version="${carbon.identity.package.import.version.range}"
                         </Import-Package>
                         <Export-Package>
                             org.wso2.carbon.security.ui.*; version="${carbon.identity.package.export.version}"
