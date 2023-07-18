@@ -28,8 +28,6 @@ import org.wso2.carbon.core.RegistryResources;
 import org.wso2.carbon.core.util.CryptoUtil;
 import org.wso2.carbon.core.util.KeyStoreManager;
 import org.wso2.carbon.core.util.KeyStoreUtil;
-import org.wso2.carbon.registry.core.Registry;
-import org.wso2.carbon.registry.core.exceptions.RegistryException;
 import org.wso2.carbon.security.SecurityConfigException;
 import org.wso2.carbon.security.SecurityConstants;
 import org.wso2.carbon.security.keystore.dao.KeyStoreDAO;
@@ -85,7 +83,6 @@ public class KeyStoreAdmin {
     private static final String PRIMARY_KEYSTORE_FILE_NAME = "carbon-primary-ks";
 
     private static final Log log = LogFactory.getLog(KeyStoreAdmin.class);
-    private Registry registry = null;
     private int tenantId;
     private boolean includeCert = false;
     private KeyStoreDAO keyStoreDAO;
@@ -94,12 +91,11 @@ public class KeyStoreAdmin {
     private static String TRUST_STORE_LOCATION;
     private static String TRUST_STORE_PASSWORD;
 
-    public KeyStoreAdmin(int tenantId, Registry registry) {
+    public KeyStoreAdmin(int tenantId) {
 
         ServerConfiguration config = ServerConfiguration.getInstance();
         TRUST_STORE_LOCATION = config.getFirstProperty("Security.TrustStore.Location");
         TRUST_STORE_PASSWORD = config.getFirstProperty("Security.TrustStore.Password");
-        this.registry = registry;
         // TODO: maybe convert this itself to UUID
         this.tenantId = tenantId;
         try {
@@ -832,9 +828,8 @@ public class KeyStoreAdmin {
      * @param keyStoreName Keystore name.
      * @return
      * @throws SecurityConfigException
-     * @throws RegistryException
      */
-    private String getKeyStoreType(String keyStoreName) throws SecurityConfigException, RegistryException {
+    private String getKeyStoreType(String keyStoreName) throws SecurityConfigException {
     
         String keyStoreType;
         if (KeyStoreUtil.isPrimaryStore(keyStoreName)) {
