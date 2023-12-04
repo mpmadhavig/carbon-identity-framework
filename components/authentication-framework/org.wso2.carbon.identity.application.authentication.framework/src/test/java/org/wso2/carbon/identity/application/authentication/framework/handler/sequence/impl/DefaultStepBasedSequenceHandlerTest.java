@@ -562,7 +562,7 @@ public class DefaultStepBasedSequenceHandlerTest {
         // Mock the provisioning handler
         ProvisioningHandler provisioningHandler = mock(ProvisioningHandler.class);
         doNothing().when(provisioningHandler)
-                .handle(anyList(), anyString(), anyMap(), captor.capture(), anyString());
+                .handle(anyList(), anyString(), anyMap(), captor.capture(), anyString(), anyBoolean());
 
         // Mock framework util to returned mocked provisoning handler
         returnMockProvisioningHandler(provisioningHandler);
@@ -570,7 +570,8 @@ public class DefaultStepBasedSequenceHandlerTest {
 
         stepBasedSequenceHandler
                 .handleJitProvisioning(subjectIdentifier, context, mappedRoles, externalAttributeValues);
-        verify(provisioningHandler).handle(anyList(), anyString(), anyMap(), captor.capture(), anyString());
+        verify(provisioningHandler).handle(anyList(), anyString(), anyMap(), captor.capture(), anyString(),
+                anyBoolean());
 
         // check whether the user is provisioned to correct user store
         assertEquals(captor.getValue(), expectedUserStoreToBeProvisioned);

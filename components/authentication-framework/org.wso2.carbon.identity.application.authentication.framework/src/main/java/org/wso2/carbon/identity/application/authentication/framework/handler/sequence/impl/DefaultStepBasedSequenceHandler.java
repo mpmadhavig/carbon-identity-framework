@@ -608,7 +608,7 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
 
             FrameworkUtils.getProvisioningHandler()
                     .handle(mappedRoles, subjectIdentifier, extAttributesValueMap, userStoreDomain,
-                            context.getTenantDomain());
+                            context.getTenantDomain(), true);
         } catch (FrameworkException e) {
             log.error("User provisioning failed!", e);
         } finally {

@@ -101,24 +101,35 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
     public void handle(List<String> roles, String subject, Map<String, String> attributes,
             String provisioningUserStoreId, String tenantDomain) throws FrameworkException {
 
-        List<String> idpToLocalRoleMapping =
-                (List<String>) IdentityUtil.threadLocalProperties.get()
-                        .get(FrameworkConstants.IDP_TO_LOCAL_ROLE_MAPPING);
-        handle(roles, subject, attributes, provisioningUserStoreId, tenantDomain, idpToLocalRoleMapping);
-
+        handle(roles, subject, attributes, provisioningUserStoreId, tenantDomain, false);
     }
 
     @Override
     public void handle(List<String> roles, String subject, Map<String, String> attributes,
-            String provisioningUserStoreId, String tenantDomain, List<String> idpToLocalRoleMapping)
+                       String provisioningUserStoreId, String tenantDomain, boolean isFederatedUser)
             throws FrameworkException {
+
+        List<String> idpToLocalRoleMapping =
+                (List<String>) IdentityUtil.threadLocalProperties.get()
+                        .get(FrameworkConstants.IDP_TO_LOCAL_ROLE_MAPPING);
+        handle(roles, subject, attributes, provisioningUserStoreId, tenantDomain, idpToLocalRoleMapping,
+                isFederatedUser);
+    }
+
+    @Override
+    public void handle(List<String> roles, String subject, Map<String, String> attributes,
+            String provisioningUserStoreId, String tenantDomain, List<String> idpToLocalRoleMapping,
+            boolean isFederatedUser) throws FrameworkException {
 
         RealmService realmService = FrameworkServiceDataHolder.getInstance().getRealmService();
 
         try {
             int tenantId = realmService.getTenantManager().getTenantId(tenantDomain);
             UserRealm realm = (UserRealm) realmService.getTenantUserRealm(tenantId);
-            String username = MultitenantUtils.getTenantAwareUsername(subject);
+            String username = subject;
+            if (!isFederatedUser) {
+                username = MultitenantUtils.getTenantAwareUsername(subject);
+            }
 
             String userStoreDomain;
             UserStoreManager userStoreManager;
@@ -145,7 +156,8 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 log.debug("User: " + username + " with roles : " + roles + " is going to be provisioned");
             }
 
-            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain);
+            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain,
+                    isFederatedUser);
             handleV1Roles(username, userStoreManager, realm, roles, idpToLocalRoleMapping);
             PermissionUpdateUtil.updatePermissionTree(tenantId);
 
@@ -194,7 +206,8 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 log.debug("User: " + username + " with roles : " + roleIdList + " is going to be provisioned");
             }
 
-            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain);
+            // todo: change true to isFederatedUser
+            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain, true);
             handleV2Roles(username, userStoreManager, realm, roleIdList, tenantDomain);
             PermissionUpdateUtil.updatePermissionTree(tenantId);
 
@@ -208,7 +221,7 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
     }
 
     private void handleUserProvisioning(String username, UserStoreManager userStoreManager, String userStoreDomain,
-                                        Map<String, String> attributes, String tenantDomain)
+                                        Map<String, String> attributes, String tenantDomain, boolean isFederatedUser)
             throws UserStoreException, FederatedAssociationManagerException, FrameworkException {
 
         String attributeSyncMethod = IdentityUtil.threadLocalProperties.get()
@@ -282,7 +295,7 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                     .getUserForFederatedAssociation(tenantDomain, idp, subjectVal);
             if (StringUtils.isEmpty(associatedUserName)) {
                 // Associate User
-                associateUser(username, userStoreDomain, tenantDomain, subjectVal, idp);
+                associateUser(username, userStoreDomain, tenantDomain, subjectVal, idp, isFederatedUser);
             }
         } else {
             String password = generatePassword();
@@ -463,8 +476,36 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
         }
     }
 
+    /**
+     * Creates federated user association.
+     *
+     * @param username        Username of the user.
+     * @param userStoreDomain User store domain of the user.
+     * @param tenantDomain    Tenant domain of the user.
+     * @param subject         Subject of the user.
+     * @param idp             Identity provider of the user.
+     * @throws FrameworkException If an error occurs while associating the user.
+     * @deprecated use {@link #associateUser(String, String, String, String, String, boolean)} instead.
+     */
+    @Deprecated
     protected void associateUser(String username, String userStoreDomain, String tenantDomain, String subject,
                                  String idp) throws FrameworkException {
+
+        associateUser(username, userStoreDomain, tenantDomain, subject, idp, false);
+    }
+
+    /**
+     * Creates federated user association.
+     *
+     * @param username        Username of the user.
+     * @param userStoreDomain User store domain of the user.
+     * @param tenantDomain    Tenant domain of the user.
+     * @param subject         Subject of the user.
+     * @param idp             Identity provider of the user.
+     * @throws FrameworkException If an error occurs while associating the user.
+     */
+    protected void associateUser(String username, String userStoreDomain, String tenantDomain, String subject,
+                                 String idp, boolean isFederatedUser) throws FrameworkException {
 
         String usernameWithUserstoreDomain = UserCoreUtil.addDomainToName(username, userStoreDomain);
         try {
@@ -475,7 +516,7 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
             if (!StringUtils.isEmpty(idp) && !StringUtils.isEmpty(subject)) {
                 FederatedAssociationManager federatedAssociationManager = FrameworkUtils
                         .getFederatedAssociationManager();
-                User user = getAssociatedUser(tenantDomain, userStoreDomain, username);
+                User user = getAssociatedUser(tenantDomain, userStoreDomain, username, isFederatedUser);
                 federatedAssociationManager.createFederatedAssociation(user, idp, subject);
 
                 if (log.isDebugEnabled()) {
@@ -500,12 +541,18 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
         }
     }
 
-    private User getAssociatedUser(String tenantDomain, String userStoreDomain, String username) {
+    private User getAssociatedUser(String tenantDomain, String userStoreDomain, String username,
+                                   boolean isFederatedUser) {
 
         User user = new User();
         user.setTenantDomain(tenantDomain);
         user.setUserStoreDomain(userStoreDomain);
         user.setUserName(MultitenantUtils.getTenantAwareUsername(username));
+        if (isFederatedUser) {
+            user.setUserName(username);
+        } else {
+            user.setUserName(MultitenantUtils.getTenantAwareUsername(username));
+        }
         return user;
     }
 
