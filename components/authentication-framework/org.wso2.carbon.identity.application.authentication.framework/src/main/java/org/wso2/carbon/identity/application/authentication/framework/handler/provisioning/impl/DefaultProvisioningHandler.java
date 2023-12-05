@@ -116,8 +116,7 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 isFederatedUser);
     }
 
-    @Override
-    public void handle(List<String> roles, String subject, Map<String, String> attributes,
+    private void handle(List<String> roles, String subject, Map<String, String> attributes,
             String provisioningUserStoreId, String tenantDomain, List<String> idpToLocalRoleMapping,
             boolean isFederatedUser) throws FrameworkException {
 
@@ -172,14 +171,18 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
 
     @Override
     public void handleWithV2Roles(List<String> roleIdList, String subject, Map<String, String> attributes,
-                       String provisioningUserStoreId, String tenantDomain) throws FrameworkException {
+                       String provisioningUserStoreId, String tenantDomain, boolean isFederatedUser)
+            throws FrameworkException {
 
         RealmService realmService = FrameworkServiceDataHolder.getInstance().getRealmService();
 
         try {
             int tenantId = realmService.getTenantManager().getTenantId(tenantDomain);
             UserRealm realm = (UserRealm) realmService.getTenantUserRealm(tenantId);
-            String username = MultitenantUtils.getTenantAwareUsername(subject);
+            String username = subject;
+            if (!isFederatedUser) {
+                username = MultitenantUtils.getTenantAwareUsername(subject);
+            }
 
             String userStoreDomain;
             UserStoreManager userStoreManager;
@@ -206,8 +209,8 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 log.debug("User: " + username + " with roles : " + roleIdList + " is going to be provisioned");
             }
 
-            // todo: change true to isFederatedUser
-            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain, true);
+            handleUserProvisioning(username, userStoreManager, userStoreDomain, attributes, tenantDomain,
+                    isFederatedUser);
             handleV2Roles(username, userStoreManager, realm, roleIdList, tenantDomain);
             PermissionUpdateUtil.updatePermissionTree(tenantId);
 

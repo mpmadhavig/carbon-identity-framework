@@ -58,7 +58,7 @@ public interface ProvisioningHandler {
     }
 
     /**
-     * Handle provisioning for federated users.
+     * Default implementation to handle provisioning for federated users.
      *
      * @param roles                   List of roles of authenticated user.
      * @param subject                 Subject of authenticated user.
@@ -75,10 +75,6 @@ public interface ProvisioningHandler {
         handle(roles, subject, attributes, provisioningUserStoreId, tenantDomain);
     }
 
-    void handle(List<String> roles, String subject, Map<String, String> attributes,
-                String provisioningUserStoreId, String tenantDomain, List<String> idpToLocalRoleMapping,
-                boolean isFederatedUser) throws FrameworkException;
-
     /**
      * Handle provisioning with v2 roles.
      *
@@ -87,10 +83,12 @@ public interface ProvisioningHandler {
      * @param attributes              Attributes.
      * @param provisioningUserStoreId Provisioning user store Id.
      * @param tenantDomain            Tenant domain.
+     * @param isFederatedUser         Whether the user is federated or not.
      * @throws FrameworkException If an error occurred while handling provisioning with v2 roles.
      */
     default void handleWithV2Roles(List<String> roleIdList, String subject, Map<String, String> attributes,
-                                   String provisioningUserStoreId, String tenantDomain) throws FrameworkException {
+                                   String provisioningUserStoreId, String tenantDomain, boolean isFederatedUser)
+            throws FrameworkException {
 
         throw new FrameworkException("Operation is not supported.");
     }
