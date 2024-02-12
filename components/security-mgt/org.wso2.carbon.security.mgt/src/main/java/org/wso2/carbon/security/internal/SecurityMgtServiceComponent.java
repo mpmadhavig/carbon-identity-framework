@@ -74,6 +74,8 @@ public class SecurityMgtServiceComponent {
                 throw new RuntimeException(msg, e);
             }
 
+            SecurityServiceHolder.setKey("wso2carbon", true);
+
             log.debug("Security Mgt bundle is activated");
         } catch (Throwable e) {
             log.error("Failed to activate SecurityMgtServiceComponent", e);

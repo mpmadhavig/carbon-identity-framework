@@ -68,6 +68,8 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.wso2.carbon.security.SecurityServiceHolder.getKey;
+
 public class KeyStoreAdmin {
 
     //trust store
@@ -565,28 +567,13 @@ public class KeyStoreAdmin {
     }
 
     public Key getPrivateKey(String alias, boolean isSuperTenant) throws SecurityConfigException {
-        KeyStoreData[] keystores = getKeyStores(isSuperTenant);
-        KeyStore keyStore = null;
-        String privateKeyPassowrd = null;
-
         try {
-
-            for (int i = 0; i < keystores.length; i++) {
-                if (KeyStoreUtil.isPrimaryStore(keystores[i].getKeyStoreName())) {
-                    KeyStoreManager keyMan = KeyStoreManager.getInstance(tenantId);
-                    keyStore = keyMan.getPrimaryKeyStore();
-                    ServerConfiguration serverConfig = ServerConfiguration.getInstance();
-                    privateKeyPassowrd = serverConfig
-                            .getFirstProperty(RegistryResources.SecurityManagement.SERVER_PRIVATE_KEY_PASSWORD);
-                    return keyStore.getKey(alias, privateKeyPassowrd.toCharArray());
-                }
-            }
+            return getKey();
         } catch (Exception e) {
             String msg = "Error has encounted while loading the key for the given alias " + alias;
             log.error(msg, e);
             throw new SecurityConfigException(msg);
         }
-        return null;
     }
 
     private CertData fillCertData(X509Certificate cert, String alise, Format formatter)
