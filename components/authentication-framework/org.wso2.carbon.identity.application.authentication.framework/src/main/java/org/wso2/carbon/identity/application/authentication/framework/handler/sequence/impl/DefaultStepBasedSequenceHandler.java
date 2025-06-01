@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.identity.application.authentication.framework.handler.sequence.impl;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
@@ -33,6 +34,7 @@ import org.wso2.carbon.identity.application.authentication.framework.config.mode
 import org.wso2.carbon.identity.application.authentication.framework.config.model.SequenceConfig;
 import org.wso2.carbon.identity.application.authentication.framework.config.model.StepConfig;
 import org.wso2.carbon.identity.application.authentication.framework.context.AuthenticationContext;
+import org.wso2.carbon.identity.application.authentication.framework.context.SessionContext;
 import org.wso2.carbon.identity.application.authentication.framework.exception.FrameworkException;
 import org.wso2.carbon.identity.application.authentication.framework.exception.MisconfigurationException;
 import org.wso2.carbon.identity.application.authentication.framework.handler.sequence.StepBasedSequenceHandler;
@@ -46,8 +48,13 @@ import org.wso2.carbon.identity.application.common.util.IdentityApplicationManag
 import org.wso2.carbon.identity.application.mgt.ApplicationConstants;
 import org.wso2.carbon.identity.central.log.mgt.utils.LogConstants;
 import org.wso2.carbon.identity.central.log.mgt.utils.LoggerUtils;
+import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
+import org.wso2.carbon.user.api.UserRealm;
+import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.user.core.common.AbstractUserStoreManager;
+import org.wso2.carbon.user.core.common.User;
 import org.wso2.carbon.utils.DiagnosticLog;
 
 import java.util.ArrayList;
@@ -57,6 +64,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -245,9 +253,13 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
         Map<String, String> mappedAttrs = new HashMap<>();
         Map<ClaimMapping, String> authenticatedUserAttributes = new HashMap<>();
 
+        String impersonatedUser = getImpersonatedUser(request, context.getLoginTenantDomain());
         boolean isAuthenticatorExecuted = false;
         for (Map.Entry<Integer, StepConfig> entry : sequenceConfig.getStepMap().entrySet()) {
             StepConfig stepConfig = entry.getValue();
+            if (StringUtils.isNotBlank(impersonatedUser)) {
+                setImpersonatorAuthenticatedUser(impersonatedUser, stepConfig);
+            }
             AuthenticatorConfig authenticatorConfig = stepConfig.getAuthenticatedAutenticator();
             if (authenticatorConfig == null) {
                 //May have skipped from the script
@@ -426,6 +438,60 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
         }
         if (!authenticatedUserAttributes.isEmpty()) {
             sequenceConfig.getAuthenticatedUser().setUserAttributes(authenticatedUserAttributes);
+        }
+    }
+
+    private String getImpersonatedUser(HttpServletRequest request, String loginTenantDomain) {
+
+        Cookie commonAuthCookie = FrameworkUtils.getAuthCookie(request);
+        if (commonAuthCookie != null) {
+            String sessionContextKey = DigestUtils.sha256Hex(commonAuthCookie.getValue());
+            SessionContext sessionContext = FrameworkUtils.getSessionContextFromCache(sessionContextKey,
+                    loginTenantDomain);
+            // Change this logic accordingly, if required.
+            if (sessionContext != null) {
+                return sessionContext.getImpersonatedUser();
+            }
+        }
+        return null;
+    }
+
+    private void setImpersonatorAuthenticatedUser(String impersonatedUser, StepConfig stepConfig)
+            throws FrameworkException {
+
+        AuthenticatedUser authenticatedUser = stepConfig.getAuthenticatedUser();
+        String tenantDomain = authenticatedUser.getTenantDomain();
+        String userAccessingOrg = authenticatedUser.getAccessingOrganization();
+        String userResidentOrg = authenticatedUser.getUserResidentOrganization();
+        String subjectUserTenantDomain = tenantDomain;
+
+        if (StringUtils.isNotBlank(userAccessingOrg) && StringUtils.isNotBlank(userResidentOrg)) {
+            subjectUserTenantDomain = userAccessingOrg;
+        }
+
+        int tenantId = IdentityTenantUtil.getTenantId(subjectUserTenantDomain);
+        UserRealm userRealm = null;
+        try {
+            userRealm = FrameworkServiceDataHolder.getInstance().getRealmService().getTenantUserRealm(tenantId);
+            User user = null;
+            if (userRealm != null) {
+                AbstractUserStoreManager userStoreManager = (AbstractUserStoreManager) userRealm.getUserStoreManager();
+                user = userStoreManager.getUser(impersonatedUser, null);
+            }
+            if (user != null) {
+                AuthenticatedUser impersonatedAuthenticatedUser = new AuthenticatedUser(user);
+                if (StringUtils.isNotBlank(userAccessingOrg) && StringUtils.isNotBlank(userResidentOrg)) {
+                    impersonatedAuthenticatedUser.setFederatedUser(true);
+                    impersonatedAuthenticatedUser.setTenantDomain(tenantDomain);
+                    impersonatedAuthenticatedUser.setAccessingOrganization(userAccessingOrg);
+                    impersonatedAuthenticatedUser.setUserResidentOrganization(userResidentOrg);
+                    impersonatedAuthenticatedUser.setFederatedIdPName(authenticatedUser.getFederatedIdPName());
+                }
+                impersonatedAuthenticatedUser.setImpersonator(authenticatedUser);
+                stepConfig.setAuthenticatedUser(impersonatedAuthenticatedUser);
+            }
+        } catch (UserStoreException e) {
+            throw new FrameworkException("Error occurred while resolving user.", e);
         }
     }
 

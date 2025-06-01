@@ -66,6 +66,7 @@ public class AuthenticatedUser extends User {
     private Map<ClaimMapping, String> userAttributes = new HashMap<>();
     private String sharedUserId;
     private String userSharedOrganizationId;
+    private AuthenticatedUser impersonator;
 
     /**
      * Instantiates an AuthenticatedUser
@@ -589,5 +590,16 @@ public class AuthenticatedUser extends User {
     public void setUserSharedOrganizationId(String sharedUserOrganizationId) {
 
         this.userSharedOrganizationId = sharedUserOrganizationId;
+    }
+
+    public AuthenticatedUser getImpersonator() {
+
+        return impersonator;
+    }
+
+    public void setImpersonator(
+            AuthenticatedUser impersonator) {
+
+        this.impersonator = impersonator;
     }
 }
