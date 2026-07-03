@@ -466,5 +466,16 @@
   "identity_mgt.events.schemes.moesifOAuthTokenIssuancePublisher.properties.enable": false,
   "identity_mgt.events.schemes.moesifOAuthTokenIssuancePublisher.subscriptions": [
     "POST_ISSUE_ACCESS_TOKEN_V2"
+  ],
+  "identity_mgt.events.schemes.RoleManagementEventHook.module_index": "74",
+  "identity_mgt.events.schemes.RoleManagementEventHook.properties.enable": true,
+  "identity_mgt.events.schemes.RoleManagementEventHook.subscriptions": [
+    "POST_ADD_ROLE_V2_EVENT",
+    "POST_UPDATE_ROLE_V2_NAME_EVENT",
+    "POST_DELETE_ROLE_V2_EVENT",
+    "POST_UPDATE_USER_LIST_OF_ROLE_V2_EVENT",
+    "POST_UPDATE_GROUP_LIST_OF_ROLE_V2_EVENT",
+    "POST_UPDATE_IDP_GROUP_LIST_OF_ROLE_V2_EVENT",
+    "POST_UPDATE_PERMISSIONS_FOR_ROLE_V2_EVENT"
   ]
 }
